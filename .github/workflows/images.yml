@@ -8,7 +8,29 @@ permissions:
   contents: read
   packages: write
 jobs:
+  integration:
+    if: github.repository == 'ashaychangwani/Secret-Hitler-Online'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend and run unit tests
+        run: docker build -f Dockerfile.backend -t sh-integration .
+      - name: Test production origins and WebSockets with isolated Postgres
+        run: |
+          docker network create sh-test
+          docker run -d --name sh-pg --network sh-test -e POSTGRES_PASSWORD=integration -e POSTGRES_DB=secret_hitler postgres:15
+          for i in $(seq 1 30); do docker exec sh-pg pg_isready -U postgres && break; sleep 1; done
+          docker run -d --name sh-app --network sh-test -p 127.0.0.1:4040:4040 -e PUBLIC_ORIGIN=https://secret-hitler.ashayc.com -e DATABASE_URL=postgres://postgres:integration@sh-pg:5432/secret_hitler sh-integration
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4040/ping && break; sleep 1; done
+          python3 backend/test_origin.py http://127.0.0.1:4040
+          docker logs sh-app
+      - name: Clean up isolated integration resources
+        if: always()
+        run: |
+          docker rm -f sh-app sh-pg || true
+          docker network rm sh-test || true
   images:
+    needs: integration
     if: github.repository == 'ashaychangwani/Secret-Hitler-Online'
     runs-on: ubuntu-latest
     strategy:

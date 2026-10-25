@@ -121,18 +121,13 @@ public class SecretHitlerServer {
 
         // Only initialize Javalin communication after the database has been queried.
         Javalin serverApp = Javalin.create(config -> {
-            config.plugins.enableCors(cors -> {
-                if (ApplicationConfig.DEBUG) {
-                    cors.add(it -> {
-                        it.anyHost();
-                    });
-                } else {
-                    cors.add(it -> {
-                        it.allowHost("https://secret-hitler.online");
-                    });
-                }
-            });
-        }).start(getHerokuAssignedPort());
+            config.plugins.enableCors(cors -> cors.add(it ->
+                    it.allowHost(ApplicationConfig.PUBLIC_ORIGIN)));
+            // Servlet filter runs before both HTTP routing and WebSocket upgrade.
+            config.jetty.contextHandlerConfig(context -> context.addFilter(
+                    OriginFilter.class, "/*", EnumSet.of(jakarta.servlet.DispatcherType.REQUEST)));
+        });
+        serverApp.start(getHerokuAssignedPort());
 
         serverApp.get("/check-login", SecretHitlerServer::checkLogin); // Checks if a login is valid.
         serverApp.get("/new-lobby", SecretHitlerServer::createNewLobby); // Creates and returns the code for a new lobby
