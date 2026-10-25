@@ -1,0 +1,11 @@
+FROM gradle:8.6.0-jdk17 AS build
+WORKDIR /src
+COPY backend/ .
+RUN gradle --no-daemon test jar
+FROM eclipse-temurin:17-jre-jammy
+WORKDIR /app
+COPY --from=build /src/build/libs/*.jar /app/secret-hitler-online.jar
+COPY LICENSE /app/LICENSE
+ENV PORT=4040
+EXPOSE 4040
+CMD ["java", "-jar", "/app/secret-hitler-online.jar"]
